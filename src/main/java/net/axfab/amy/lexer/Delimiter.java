@@ -14,14 +14,35 @@
     License along with AmySuite.
     If not, see <http://www.gnu.org/licenses/>. 
 */
-package net.axfab.amy.queries;
+package net.axfab.amy.lexer;
 
-public class ParseException extends Exception {
+public class Delimiter {
 
-	private static final long serialVersionUID = 7087523574845601741L;
-
-	public ParseException(String msg) {
-		super(msg);
+	private String label;
+	private String prefix;
+	private String suffix;
+	private String escape;
+	
+	public Delimiter(String label, String prefix, String suffix, String escape) {
+		this.label = label;
+		this.prefix = prefix;
+		this.suffix = suffix;
+		this.escape = escape;
 	}
-
+	
+	public TokenClass getLabel() {
+		return TokenClass.valueOf(label);
+	}
+	
+	public String getPrefix() {
+		return prefix;
+	}
+	
+	public String getSuffix() {
+		return suffix;
+	}
+	
+	public String getEscape() {
+		return escape;
+	}
 }

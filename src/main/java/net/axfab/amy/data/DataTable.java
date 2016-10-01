@@ -16,32 +16,93 @@
 */
 package net.axfab.amy.data;
 
-import java.util.LinkedList;
-import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 
 public class DataTable {
 
-	private List<DataColumn> columns = new LinkedList<DataColumn>();
+	private String name;
+	private int selectedRow;
+	private ArrayList<DataRow> rows = new ArrayList<>();
+	private Map<String, DataColumn> columns = new HashMap<>();
 	
 	public DataTable(String name) {
+		this.name = name;
 	}
 
-	public void addColumn(DataColumn column) {
-		columns.add(column.copy());
-	}
-
-	public void addColumn(String name, String type, int length, boolean repeating) {
-		columns.add(new DataColumn(name, type, length, repeating));
-	}
-
-	public void addColumn(String name, String type, int length) {
-		columns.add(new DataColumn(name, type, length));
-	}
-
-	public void addColumn(String name, String type) {
-		columns.add(new DataColumn(name, type));
+	public String getName() {
+		return name;
 	}
 	
+	public DataTable addColumn(DataColumn column) {
+		String name = column.getName();
+		columns.put(name, column.copy());
+		return this;
+	}
 	
+	public boolean rewindRow() {
+		selectedRow = -1;
+		return nextRow();
+	}
 	
+	public boolean nextRow() {
+		return ++selectedRow < rows.size();
+	}
+	
+	public void fetchRow(String table, DataRow obj) throws DataError {
+		DataRow row = getRow();
+		for (Entry<String, DataColumn> column : columns.entrySet()) {
+			String key = table + "." + column.getKey();
+			DataValue value = row.get(column.getKey());
+			if (value == null) {
+				throw new DataError("Error on column matching: " + column.getKey());
+			} else if (value.getType() != column.getValue().getType()) {
+				throw new DataError("Error on column type: " + column.getKey());
+			}
+			obj.put(key, value.copy());
+		}
+	}
+	
+	public DataTable pushRow(DataRow data) throws DataError {
+		DataRow row = new DataRow();
+		for (Entry<String, DataColumn> column : columns.entrySet()) {
+			String key = column.getKey();
+			DataValue value = data.getColumn(key);
+			if (value == null) {
+				throw new DataError("Unknown column named: " + key);
+			} 
+			row.put(key, value.copy());
+		}
+		rows.add(row);
+		return this;
+	}
+	
+	public void dump() {
+		for (DataRow row : rows) {
+			row.dump();
+			System.out.println("  ------");
+		}
+	}
+
+	private DataRow getRow() {
+		return rows.get(selectedRow);
+	}
+
+	public DataColumn getColumn(String name) {
+		DataColumn value = columns.get(name);
+		if (value == null) {
+			for (String column : columns.keySet()) {
+				int k = column.lastIndexOf('.');
+				if (column.substring(k+1).equals(name)) {
+					value = columns.get(column);
+					break;
+				}
+			}
+		}
+		return value;
+	}
+
+
 }

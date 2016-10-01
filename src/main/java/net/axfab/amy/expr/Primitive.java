@@ -14,44 +14,25 @@
     License along with AmySuite.
     If not, see <http://www.gnu.org/licenses/>. 
 */
-package net.axfab.amy.lexer;
+package net.axfab.amy.expr;
 
-public class Token {
-
-	private String text;
-	private TokenClass type;
-	private int row;
-	private int column;
-
-	public Token(String text, TokenClass type, int row, int column) {
-		this.text = text;
-		this.type = type;
-		this.row = row;
-		this.column = column;
-	}
-
-	public String getLiteral() {
-		return text;
-	}
-
-	@Override
-	public String toString() {
-		return type + ": " + text;
-	}
-
-	public boolean isEquals(String string) {
-		return text.equals(string);
-	}
-
-	public boolean isOfType(TokenClass type) {
-		return this.type == type;
-	}
-
-	public void setLitteral(String text) {
-		this.text = text;
-	}
-
-	public String getPosition() {
-		return "line " + row + ", column " + column;
-	}
+public enum Primitive {
+	Error,
+	Undefined,
+	Null,
+	Boolean,
+	Byte,
+	SByte,
+	Short,
+	UShort,
+	Int, 
+	UInt,
+	Long,
+	ULong,
+	Float,
+	Double,
+	Decimal,
+	String,
+	DateTime,
+	DateOnly,
 }

@@ -16,8 +16,6 @@
 */
 package net.axfab.amy.lexer;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Map.Entry;
 
 public class Tokenizer {
@@ -26,69 +24,10 @@ public class Tokenizer {
 	private int column;
 	private String text;
 	private Token unreadToken;
-	private static Map<String, TokenClass> keywords;
-
+	private Language lang;
 	
-	static {
-		keywords = new HashMap<String, TokenClass>();
-		keywords.put("!", TokenClass.OPERATOR);
-		keywords.put("+", TokenClass.OPERATOR);
-		keywords.put("-", TokenClass.OPERATOR);
-		keywords.put("*", TokenClass.OPERATOR);
-		keywords.put("/", TokenClass.OPERATOR);
-		keywords.put("%", TokenClass.OPERATOR);
-		keywords.put("==", TokenClass.OPERATOR);
-		keywords.put("!=", TokenClass.OPERATOR);
-		keywords.put("=", TokenClass.OPERATOR);
-		keywords.put("<<", TokenClass.OPERATOR);
-		keywords.put("<=", TokenClass.OPERATOR);
-		keywords.put("<", TokenClass.OPERATOR);
-		keywords.put(">>", TokenClass.OPERATOR);
-		keywords.put(">=", TokenClass.OPERATOR);
-		keywords.put(">", TokenClass.OPERATOR);
-
-		keywords.put("SELECT", TokenClass.KEYWORD1);
-		keywords.put("FROM", TokenClass.KEYWORD1);
-		keywords.put("WHERE", TokenClass.KEYWORD1);
-		keywords.put("WITH", TokenClass.KEYWORD1);
-		keywords.put("RECURSIVE", TokenClass.KEYWORD1);
-		keywords.put("ALL", TokenClass.KEYWORD1);
-		keywords.put("ORDER", TokenClass.KEYWORD1);
-		keywords.put("BY", TokenClass.KEYWORD1);
-		keywords.put("LIMIT", TokenClass.KEYWORD1);
-		keywords.put("OFFSET", TokenClass.KEYWORD1);
-		keywords.put("HAVING", TokenClass.KEYWORD1);
-		keywords.put("VALUES", TokenClass.KEYWORD1);
-		keywords.put("AS", TokenClass.KEYWORD1);
-		keywords.put("DISTINCT", TokenClass.KEYWORD1);
-		keywords.put("CAST", TokenClass.KEYWORD1);
-		keywords.put("COLLATE", TokenClass.KEYWORD1);
-		keywords.put("NOT", TokenClass.KEYWORD1);
-		keywords.put("LIKE", TokenClass.KEYWORD1);
-		keywords.put("GLOB", TokenClass.KEYWORD1);
-		keywords.put("REGEXP", TokenClass.KEYWORD1);
-		keywords.put("MATCH", TokenClass.KEYWORD1);
-		keywords.put("ESCAPE", TokenClass.KEYWORD1);
-		keywords.put("IS", TokenClass.KEYWORD1);
-		keywords.put("ISNULL", TokenClass.KEYWORD1);
-		keywords.put("NOTNULL", TokenClass.KEYWORD1);
-		keywords.put("NOT", TokenClass.KEYWORD1);
-		keywords.put("BETWEEN", TokenClass.KEYWORD1);
-		keywords.put("AND", TokenClass.KEYWORD1);
-		keywords.put("EXISTS", TokenClass.KEYWORD1);
-		keywords.put("CASE", TokenClass.KEYWORD1);
-		keywords.put("WHEN", TokenClass.KEYWORD1);
-		keywords.put("THEN", TokenClass.KEYWORD1);
-		keywords.put("ELSE", TokenClass.KEYWORD1);
-		keywords.put("END", TokenClass.KEYWORD1);
-		
-		keywords.put("NULL", TokenClass.KEYWORD2);
-		keywords.put("NULLSTRING", TokenClass.KEYWORD2);
-		keywords.put("NULLDATE", TokenClass.KEYWORD2);
-	}
-	
-	public Tokenizer() {
-
+	public Tokenizer(Language language) {
+		lang = language;
 	}
 
 	public void setup(String text) {
@@ -113,24 +52,33 @@ public class Tokenizer {
 	}
 
 	public void unread(Token token) {
+		if (unreadToken != null) {
+			throw new RuntimeException("unread is not implemented for several tokens.");
+		}
 		unreadToken = token;
 	}
 
 	private Token readToken() {
-		if (text.startsWith("#"))
-			return readUntil("#", "\n", null, TokenClass.COMMENT);
-		else if (text.startsWith("//"))
-			return readUntil("//", "\n", null, TokenClass.COMMENT);
-		else if (text.startsWith("\""))
-			return readUntil("\"", "\"", "\\\"", TokenClass.STRING);
-		else if (text.startsWith("'"))
-			return readUntil("'", "'", "''", TokenClass.STRING);
+		Token token = null;
+		if (text == null || text.length() == 0) {
+			return token;
+		}
 		
-		for (Entry<String, TokenClass> keyword : keywords.entrySet()) {
+		// DELIMITERS
+		for (Delimiter rule : lang.getDelimiters()) {
+			if (text.startsWith(rule.getPrefix())) {
+				return readUntil(rule.getPrefix(), rule.getSuffix(), rule.getEscape(), rule.getLabel());
+			}
+		}
+		
+		// OPERATORS & KEYWORDS
+		for (Entry<String, TokenClass> keyword : lang.getKeywords()) {
 			if (text.startsWith(keyword.getKey())) {
 				return readKeyword(keyword.getKey(), keyword.getValue());
 			}
 		}
+		
+		// PATTERNS
 		
 		if (Character.isDigit(text.charAt(0))) {
 			return readNumber();
@@ -138,7 +86,7 @@ public class Tokenizer {
 			return readIdentifier();
 		}
 
-		return null;
+		throw new RuntimeException("Can't find the next token: " + text);
 	}
 
 	private void consume(int lg) {

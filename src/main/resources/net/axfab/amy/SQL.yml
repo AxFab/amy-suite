@@ -1,0 +1,73 @@
+# Description of SQL tokens
+
+Delimeters:
+  - STRING: ' | ' | ''
+  - STRING: " | " | ""
+  - COMMENT: -- | \n
+
+OPERATOR:
+  - !
+  - ~
+  - *
+  - / 
+  - %
+  - +
+  - -
+  - <<
+  - >>
+  - <=
+  - >=
+  - <
+  - >
+  - ==
+  - !=
+  - =
+  - &&
+  - ||
+  - &
+  - ^
+  - |
+  - (
+  - )
+     
+KEYWORD1:
+  - SELECT
+  - FROM
+  - WHERE
+  - WITH
+  - RECURSIVE
+  - ALL
+  - ORDER
+  - BY
+  - LIMIT
+  - OFFSET
+  - HAVING
+  - AS
+  - DISTINCT
+  - CAST
+  - COLLATE
+  - NOT
+  - LIKE
+  - GLOB
+  - REGEXP
+  - MATCH
+  - ESCAPE
+  - IS
+  - ISNULL
+  - NOTNULL
+  - BETWEEN
+  - EXISTS
+  - CASE
+  - WHEN
+  - THEN
+  - ELSE
+  - END
+  - NULL
+  - NULLSTRING
+  - NULLDATE
+  
+KEYWORD2:
+  - ,
+  - ;
+
+ 

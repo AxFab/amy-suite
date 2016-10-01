@@ -14,8 +14,35 @@
     License along with AmySuite.
     If not, see <http://www.gnu.org/licenses/>. 
 */
-package net.axfab.amy.expr;
+package net.axfab.amy.data;
 
-public class Expression {
+import java.util.HashMap;
 
+public class DataRow extends HashMap<String, DataValue> {
+
+	private static final long serialVersionUID = -5036812566522516486L;
+
+	public DataValue getColumn(String name) {
+		DataValue value = get(name);
+		if (value == null) {
+			for (String column : keySet()) {
+				int k = column.lastIndexOf('.');
+				if (column.substring(k+1).equals(name)) {
+					value = get(column);
+					break;
+				}
+			}
+		}
+		return value;
+	}
+	
+	public void putColumn() {
+		
+	}
+	
+	public void dump() {
+		for (Entry<String, DataValue> data : entrySet()) {
+			System.out.println(data.getKey() + " -> " + data.getValue().getValue());
+		}
+	}
 }

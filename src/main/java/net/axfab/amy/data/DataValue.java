@@ -16,51 +16,56 @@
 */
 package net.axfab.amy.data;
 
-import net.axfab.amy.expr.Resolver;
 import net.axfab.amy.expr.Primitive;
 
-public class DataColumn {
+public class DataValue {
 
-	private String name;
 	private Primitive type;
-	private int length;
-	private boolean repeating;
-	private Resolver method;
-
-	public DataColumn(String name, Primitive type, int length, boolean repeating) {
-		this.name = name;
+	private Object value;
+	
+	public DataValue(Primitive type, Object value) throws DataError
+	{
 		this.type = type;
-		this.length = length;
-		this.repeating = repeating;
-	}
+		switch (type) {
+		case Boolean:
+			this.value = (Boolean)value;
+			break;
 
-	public DataColumn(String name, Primitive type, int length) {
-		this(name, type, length, false);
-	}
+		case Byte:
+		case SByte:
+		case Short:
+		case UShort:
+		case Int:
+			break;
 
-	public DataColumn(String name, Primitive type) {
-		this(name, type, 0, false);
-	}
+		case Float:
+		case Double:
+			this.value = (Double)value;
+			break;
+			
 
-	public DataColumn(Resolver expr, String alias) {
-		this.name = alias;
-		this.type = Primitive.Undefined;
-		this.method = expr;
-	}
+		case String:
+			this.value = (String)value;
+			break;
 
-	public DataColumn copy() {
-		return new DataColumn(name, type, length, repeating);
-	}
-
-	public String getName() {
-		return name;
+		case DateOnly:
+		case DateTime:
+			break;
+			
+		default:
+			throw new DataError("Unsupported type.");
+		}
 	}
 
 	public Primitive getType() {
 		return type;
 	}
 
-	public Resolver getMethod() {
-		return method;
+	public Object getValue() {
+		return value;
+	}
+
+	public DataValue copy() throws DataError {
+		return new DataValue(type, value);
 	}
 }
