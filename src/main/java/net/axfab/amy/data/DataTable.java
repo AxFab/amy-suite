@@ -86,7 +86,7 @@ public class DataTable {
 		}
 	}
 
-	private DataRow getRow() {
+	public DataRow getRow() {
 		return rows.get(selectedRow);
 	}
 

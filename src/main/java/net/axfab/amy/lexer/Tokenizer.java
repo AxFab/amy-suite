@@ -28,6 +28,10 @@ public class Tokenizer {
 	
 	public Tokenizer(Language language) {
 		lang = language;
+		lang.addPattern(TokenClass.OCTAL, "[+-]?0[0-7]+");
+		lang.addPattern(TokenClass.HEXADECIMAL, "[+-]?0x[0-9A-Fa-f]+");
+		lang.addPattern(TokenClass.DECIMAL, "[+-]?[0-9]+");
+		lang.addPattern(TokenClass.NUMBER, "[+-]?[0-9]+\\.[0-9]+");
 	}
 
 	public void setup(String text) {
@@ -61,7 +65,7 @@ public class Tokenizer {
 	private Token readToken() {
 		Token token = null;
 		if (text == null || text.length() == 0) {
-			return token;
+			return null;
 		}
 		
 		// DELIMITERS
@@ -73,17 +77,27 @@ public class Tokenizer {
 		
 		// OPERATORS & KEYWORDS
 		for (Entry<String, TokenClass> keyword : lang.getKeywords()) {
-			if (text.startsWith(keyword.getKey())) {
+			String keywd = keyword.getKey();
+			int lg = keywd.length();
+			if (text.length() >= lg && text.substring(0, lg).compareToIgnoreCase(keywd) == 0) {
+			// if (text.startsWith()) {
 				return readKeyword(keyword.getKey(), keyword.getValue());
 			}
 		}
 		
 		// PATTERNS
+		for (PatternToken pattern : lang.getPatterns()) {
+			if (pattern.isMatching(text)) {
+				String value = pattern.getValue();
+				token = new Token(value, pattern.getLabel(), row, column);
+				consume(value.length());
+				return token;
+			}
+		}
 		
-		if (Character.isDigit(text.charAt(0))) {
-			return readNumber();
-		} else if (Character.isAlphabetic(text.charAt(0)) || text.charAt(0) == '_') {
-			return readIdentifier();
+		if (Character.isAlphabetic(text.charAt(0)) || text.charAt(0) == '_') {
+			token = readIdentifier();
+			return token;
 		}
 
 		throw new RuntimeException("Can't find the next token: " + text);
@@ -133,16 +147,13 @@ public class Tokenizer {
 		consume(key.length());
 		return token;
 	}
-
-	private Token readNumber() {
-		return null;
-	}
+	
 
 	private Token readIdentifier() {
 		int sz = 0;
-		while (Character.isAlphabetic(text.charAt(sz)) ||
+		while (sz < text.length() && (Character.isAlphabetic(text.charAt(sz)) ||
 				Character.isDigit(text.charAt(sz)) ||
-				text.charAt(sz) == '_') {
+				text.charAt(sz) == '_')) {
 			++sz;
 		}
 

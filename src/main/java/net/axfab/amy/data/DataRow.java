@@ -35,14 +35,19 @@ public class DataRow extends HashMap<String, DataValue> {
 		}
 		return value;
 	}
-	
-	public void putColumn() {
-		
+
+	public void mergeRow(DataRow newRow) throws DataError {
+		for (Entry<String, DataValue> newColumn : newRow.entrySet()) {
+			DataValue column = getColumn(newColumn.getKey());
+			column.setValue(newColumn.getValue());
+		}
 	}
 	
 	public void dump() {
+		System.out.println("Row:");
 		for (Entry<String, DataValue> data : entrySet()) {
-			System.out.println(data.getKey() + " -> " + data.getValue().getValue());
+			System.out.println(" " + data.getKey() + " -> " + data.getValue().getValue());
 		}
 	}
+
 }

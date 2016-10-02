@@ -16,6 +16,10 @@
 */
 package net.axfab.amy.expr;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import net.axfab.amy.data.DataError;
 import net.axfab.amy.lexer.Token;
 
 public class Operand {
@@ -29,6 +33,7 @@ public class Operand {
 	private Primitive type;
 	private Object value;
 	private Token token;
+	private List<Resolver> parameters;
 
 	public Operand(Token token, String name) {
 		this.token = token;
@@ -92,22 +97,33 @@ public class Operand {
 		return token;
 	}
 
-	public void resolve(Operand... operands) {
-		this.left = operands[0];
-		this.right = operands[1];
+	public void resolve(Operand left, Operand right) throws ParserException, DataError {
+		this.left = left;
+		this.right = right;
 		this.left.parent = this;
 		this.right.parent = this;
-		resolve();
+		resolve(false);
 	}
 
-	public void resolve() {
-		OperatorAction action = OperatorAction.find(this.operator, left.type, right.type);
-		if (action == null) {
-			this.type = Primitive.Error;
-			this.isConst = false;
-			// Push an error or what !?
-		} else {
-			action.evaluate(this, left, right);
+	public void resolve(boolean all) throws ParserException, DataError {
+		if (this.operator == Operator.Call) {
+			OperatorAction.resolve(this, this.parameters);
+			return;
+		} else if (this.operator.isBinary()) {
+			if (!left.isConst && all) {
+				left.resolve(all);
+			}
+			if (!right.isConst && all) {
+				right.resolve(all);
+			}
+			OperatorAction action = OperatorAction.find(this.operator, left.type, right.type);
+			if (action == null) {
+				this.type = Primitive.Error;
+				this.isConst = false;
+				// Push an error or what !?
+			} else {
+				action.evaluate(this, left, right);
+			}
 		}
 	}
 
@@ -118,6 +134,35 @@ public class Operand {
 
 	public int getPriority() {
 		return operator.getPriority();
+	}
+
+	public void convertAsFunction() throws DataError {
+		if (this.operator != Operator.Operand) {
+			throw new DataError("Only an identifier can be used as a function.");
+		}
+
+		this.operator = Operator.Call;
+		parameters = new ArrayList<>();
+	}
+
+	public void pushParameter(Resolver expr) {
+		if (this.operator != Operator.Call) {
+			throw new RuntimeException("This operator is not a function.");
+		}
+		
+		this.parameters.add(expr);
+	}
+
+	public List<Operand> getParameters() throws ParserException {
+		if (this.operator != Operator.Call) {
+			throw new RuntimeException("This operator is not a function.");
+		}
+		
+		List<Operand> params = new ArrayList<>(parameters.size());
+		for (Resolver expr : parameters) {
+			params.add(expr.getResult());
+		}
+		return params;
 	}
 
 }

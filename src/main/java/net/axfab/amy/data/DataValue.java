@@ -26,6 +26,35 @@ public class DataValue {
 	public DataValue(Primitive type, Object value) throws DataError
 	{
 		this.type = type;
+		setValue(type, value);
+	}
+
+	public Primitive getType() {
+		return type;
+	}
+
+	public Object getValue() {
+		return value;
+	}
+
+	public DataValue copy() throws DataError {
+		return new DataValue(type, value);
+	}
+
+	public void setValue(DataValue value) throws DataError {
+		if (!this.value.getClass().equals(value.getValue().getClass())) {
+			throw new DataError("Value types doesn't match.");
+		}
+		setValue(type, value.getValue());
+	}
+	
+	@Override
+	public String toString() {
+		return type + ": " + value;
+	}
+	
+	private void setValue(Primitive type, Object value) throws DataError {
+
 		switch (type) {
 		case Boolean:
 			this.value = (Boolean)value;
@@ -36,6 +65,7 @@ public class DataValue {
 		case Short:
 		case UShort:
 		case Int:
+			this.value = (Integer)value;
 			break;
 
 		case Float:
@@ -55,17 +85,5 @@ public class DataValue {
 		default:
 			throw new DataError("Unsupported type.");
 		}
-	}
-
-	public Primitive getType() {
-		return type;
-	}
-
-	public Object getValue() {
-		return value;
-	}
-
-	public DataValue copy() throws DataError {
-		return new DataValue(type, value);
 	}
 }

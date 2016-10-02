@@ -20,6 +20,7 @@ import java.util.Queue;
 import java.util.Stack;
 import java.util.concurrent.LinkedTransferQueue;
 
+import net.axfab.amy.data.DataError;
 import net.axfab.amy.data.DataRow;
 import net.axfab.amy.data.DataValue;
 import net.axfab.amy.lexer.Token;
@@ -55,7 +56,12 @@ public class Resolver {
 		UnaryOperatorRightLeft,
 		/** Indicates that the expression is not valid. */
 		Error,
+		
+		Call,
 	};
+	
+	private int parenthesisCount = 0;
+	private boolean isSubExpression = false;
 
 	/** the post-fix stack allow to store operand(as value) as they come. */
 	private Stack<Operand> postFixStack_;
@@ -79,17 +85,25 @@ public class Resolver {
 	/** Keep track of the last pushed token. */
 	private Token last_;
 
+	private Resolver subExpression;
+
 	/** Index used internaly for SSA variable naming. */
-	//private int ssaNameIdx;
+	// private int ssaNameIdx;
 
 	/** Static array used internaly for SSA variable naming. */
-	//private final String ssaNameArr = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+	// private final String ssaNameArr =
+	// "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 	/** Initializes a new instance of the <see cref="Resolver" /> class. */
 	public Resolver() {
 		this.reset();
 	}
 
+	private Resolver(boolean isSub) {
+		isSubExpression = true;
+		this.reset();
+	}
+	
 	/**
 	 * Push an operand on the post-fix stack.
 	 * 
@@ -107,14 +121,15 @@ public class Resolver {
 	 * @param node
 	 *            An operand object with an operator.
 	 * @throws ParserException
+	 * @throws DataError 
 	 */
-	private void addPostFixOperator(Operand node) throws ParserException {
+	private void addPostFixOperator(Operand node) throws ParserException, DataError {
 		Operand opRg;
 		Operand opLf;
 
-		if (node.getPriority() == 0) {
+		if (node.getOperator().isOperand()) {
 			throw new ParserException(
-					"Internal error, the definition for this operator can't be found: " + node.getOperator());
+					"Internal error, can't push operands on the postfix stack: " + node.getOperator());
 		}
 
 		if (node.getOperator().isUnitary()) {
@@ -132,7 +147,6 @@ public class Resolver {
 			opLf = postFixStack_.pop();
 
 		} else {
-			// TODO Parenthesis can be there if the expression is incorrect
 			throw new ParserException("Invalid operator: " + node.getOperator());
 		}
 
@@ -143,8 +157,8 @@ public class Resolver {
 	/**
 	 * Set the expression in error and keep track of an error message.
 	 * 
-	 * @param msg">An
-	 *            error message.
+	 * @param msg
+	 *            An error message.
 	 * @return Always return false to be return by the calling function.
 	 */
 	private boolean error(String msg) {
@@ -170,7 +184,9 @@ public class Resolver {
 	 *            the operator value to pushed.
 	 */
 	private boolean setLast(Token token, Operator op) {
-		if (op == Operator.Operand || op == Operator.Parenthesis) {
+		if (op == Operator.Parenthesis && this.status_ == ExpressionStatus.Operand) {
+			this.status_ = ExpressionStatus.Call;
+		} else if (op == Operator.Operand || op == Operator.Parenthesis) {
 			if (this.status_ != ExpressionStatus.Start && this.status_ != ExpressionStatus.BinaryOperator
 					&& this.status_ != ExpressionStatus.UnaryOperatorLeftRight) {
 				return error("Unexpected operand");
@@ -201,11 +217,14 @@ public class Resolver {
 	}
 
 	public boolean push(Token token, Operand operand) {
+		if (subExpression != null) {
+			return subExpression.push(token, operand);
+		} 
+
 		Operator opcode = operand.getOperator();
 		if (!opcode.isOperand()) {
 			throw new IllegalArgumentException("");
-		}
-		if (!setLast(token, opcode)) {
+		} else if (!setLast(token, opcode)) {
 			return false;
 		}
 
@@ -213,8 +232,10 @@ public class Resolver {
 		return true;
 	}
 
-	public boolean push(Token token, Operator opcode) throws ParserException {
-		if (!setLast(token, opcode)) {
+	public boolean push(Token token, Operator opcode) throws ParserException, DataError {
+		if (subExpression != null) {
+			return subExpression.push(token, opcode);
+		} else if (!setLast(token, opcode)) {
 			return false;
 		}
 
@@ -228,19 +249,48 @@ public class Resolver {
 		return true;
 	}
 
-	public boolean openParenthese(Token token) {
-		if (!setLast(token, Operator.Parenthesis))
+	public boolean openParenthese(Token token) throws DataError {
+		if (subExpression != null) {
+			return subExpression.openParenthese(token);
+		} else if (!setLast(token, Operator.Parenthesis)) {
 			return false;
-
-		Operand node = new Operand(token, Operator.Parenthesis);
-		inFixStack_.push(node);
+		}
+		
+		if (this.status_ == ExpressionStatus.Call) {
+			if (postFixStack_.size() < 1) {
+				throw new RuntimeException("Internal Error: Missing operand to use as function name.");
+			}
+			Operand node = postFixStack_.peek();
+			subExpression = new Resolver(true);
+			node.convertAsFunction();
+			node.pushParameter(subExpression);
+		} else {
+			parenthesisCount++;
+			Operand node = new Operand(token, Operator.Parenthesis);
+			inFixStack_.push(node);
+		}
 		return true;
 	}
 
-	public boolean closeParenthese(Token token) throws ParserException {
-		if (this.status_ != ExpressionStatus.Operand)
-			return error("unexpected parenthese");
+	public boolean closeParenthese(Token token) throws ParserException, DataError {
 
+		if (subExpression != null) {
+			boolean res = subExpression.closeParenthese(token);
+			if (res == false) {
+				subExpression = null;
+				this.status_ = ExpressionStatus.Operand;
+				return true;
+			}
+			return res;
+		} else if (this.status_ != ExpressionStatus.Operand) {
+			return error("unexpected parenthese");
+		}
+		if (parenthesisCount == 0) {
+			if (this.isSubExpression) {
+				return false;
+			}
+			return error("closing parenthese without openning");
+		}
 		this.last_ = token;
 		this.status_ = ExpressionStatus.Operand;
 		Operand node = inFixStack_.pop();
@@ -253,7 +303,7 @@ public class Resolver {
 		return true;
 	}
 
-	public boolean compile() throws ParserException {
+	public boolean compile() throws ParserException, DataError {
 		if (this.status_ == ExpressionStatus.Error) {
 			return false;
 		}
@@ -288,7 +338,7 @@ public class Resolver {
 		return postFixStack_.peek();
 	}
 
-	public void invoke(DataRow row) {
+	public void invoke(DataRow row) throws DataError, ParserException {
 		Operand top = null;
 		Queue<Operand> pool = new LinkedTransferQueue<>();
 		try {
@@ -308,15 +358,23 @@ public class Resolver {
 			if (op.getRight() != null) {
 				pool.add(op.getRight());
 			}
+			if (op.getOperator() == Operator.Call) {
+				for (Operand sop : op.getParameters()) {
+					pool.add(sop);
+				}
+			}
 			if (op.getOperator() != Operator.Operand) {
 				continue;
 			}
 
 			String name = op.getName();
 			DataValue value = row.getColumn(name);
+			if (value == null) {
+				throw new DataError("Unresolved variable: " + name);
+			}
 			op.setValue(value.getType(), value.getValue());
 		}
-		top.resolve(); // TODO -- all the way, down to up
+		top.resolve(true); // TODO -- all the way, down to up
 	}
 
 	public boolean isTrue() throws ParserException {

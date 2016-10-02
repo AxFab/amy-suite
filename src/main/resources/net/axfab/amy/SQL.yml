@@ -29,11 +29,18 @@ OPERATOR:
   - |
   - (
   - )
+  - AND
+  - OR
+  - IS
      
 KEYWORD1:
   - SELECT
   - FROM
   - WHERE
+  - INSERT
+  - UPDATE
+  - INTO
+  - VALUES
   - WITH
   - RECURSIVE
   - ALL
@@ -51,8 +58,8 @@ KEYWORD1:
   - GLOB
   - REGEXP
   - MATCH
+  - SET
   - ESCAPE
-  - IS
   - ISNULL
   - NOTNULL
   - BETWEEN
@@ -62,9 +69,9 @@ KEYWORD1:
   - THEN
   - ELSE
   - END
-  - NULL
   - NULLSTRING
   - NULLDATE
+  - NULL
   
 KEYWORD2:
   - ,

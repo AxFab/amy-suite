@@ -23,18 +23,21 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class Language {
 
+	private static final Logger logger = Logger.getLogger("lexer");
 	private List<Delimiter> delimiters = new LinkedList<>();
-	private Map<String, TokenClass> keywords = new HashMap<>();
-	private List<Delimiter> patterns = new LinkedList<>();
+	private Map<String, TokenClass> keywords = new LinkedHashMap<>();
+	private List<PatternToken> patterns = new LinkedList<>();
 
 	public static Language load(String url) {
 		InputStream input = Language.class.getClassLoader().getResourceAsStream(url);
@@ -43,7 +46,7 @@ public class Language {
 				input = new FileInputStream(new File(url));
 			}
 		} catch (FileNotFoundException ex) {
-			// TODO log
+			logger.log(Level.SEVERE, "Fail to load language, no file at " + url);
 		}
 
 		if (input == null) {
@@ -52,15 +55,15 @@ public class Language {
 
 		try {
 			Language lang = new Language();
-			lang.load(input);
+			lang.load(input, url);
 			return lang;
 		} catch (IOException ex) {
-			// TODO -- log
+			logger.log(Level.SEVERE, "Fail to load language, error reading file at " + url);
 			return null;
 		}
 	}
 
-	public void addDelimiter(String label, String prefix, String suffix, String escape) {
+	public void addDelimiter(TokenClass label, String prefix, String suffix, String escape) {
 		this.delimiters.add(new Delimiter(label, prefix, suffix, escape));
 	}
 
@@ -68,8 +71,8 @@ public class Language {
 		this.keywords.put(value, category);
 	}
 
-	public void addPattern(String key, String value) {
-		// TODO Auto-generated method stub
+	public void addPattern(TokenClass label, String value) {
+		this.patterns.add(new PatternToken(label, value));
 	}
 
 	List<Delimiter> getDelimiters() {
@@ -80,11 +83,11 @@ public class Language {
 		return keywords.entrySet();
 	}
 
-	List<Delimiter> getPatterns() {
+	List<PatternToken> getPatterns() {
 		return patterns;
 	}
 
-	private void load(InputStream input) throws IOException {
+	private void load(InputStream input, String url) throws IOException {
 		int status = 0;
 		TokenClass category = TokenClass.COMMENT;
 		BufferedReader reader = new BufferedReader(new InputStreamReader(input));
@@ -100,17 +103,18 @@ public class Language {
 				
 				int k = line.indexOf(':');
 				String key = line.substring(0, k);
+				TokenClass label = TokenClass.valueOf(key);
 				String value = line.substring(k+1);
 				if (status == 1) {
-					addPattern(key, value);
+					addPattern(label, value);
 				} else {
 					String[] values = value.split("\\|");
 					if (values.length == 3) {
-						addDelimiter(key, values[0].trim(), values[1].trim(), values[2].trim());
+						addDelimiter(label, values[0].trim(), values[1].trim(), values[2].trim());
 					} else if (values.length == 2) {
-						addDelimiter(key, values[0].trim(), values[1].trim(), null);
+						addDelimiter(label, values[0].trim(), values[1].trim(), null);
 					} else {
-						// TODO log
+						logger.log(Level.WARNING, "Delimiter patterns must have 2 or 3 values splited by '|' at " + url + ": " + line);
 					}
 				}
 			} else if (line.endsWith(":")) {
@@ -124,7 +128,7 @@ public class Language {
 					category = TokenClass.valueOf(line);
 				}
 			} else {
-				// TODO log
+				logger.log(Level.WARNING, "Pattern unrecognized on langugage file at " + url + ": " + line);
 			}
 		}	
 	}

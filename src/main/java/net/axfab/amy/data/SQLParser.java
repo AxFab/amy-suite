@@ -38,6 +38,7 @@ public class SQLParser {
 			Language.load("net/axfab/amy/SQL.yml"));
 	private DataBase db;
 	private DataTable results;
+	private DataRow updateRow;
 	private Map<String, DataTable> tables;
 	private Resolver whereClause;
 	private boolean distinct;
@@ -62,6 +63,10 @@ public class SQLParser {
 			readInsertCore();
 			executeInsert();
 			break;
+		case "UPDATE":
+			readUpdateCore();
+			executeUpdate();
+			break;
 		}
 	}
 
@@ -69,48 +74,118 @@ public class SQLParser {
 		return results;
 	}
 
-	private void executeSelect() throws DataError, ParserException {
+	private DataTable[] initExecution ()
+	{
 		int i=0;
 		// Select first row
 		DataTable[] tblArray = new DataTable[tables.size()];
 		for (Entry<String, DataTable> tbl : tables.entrySet()) {
 			tblArray[i] = tbl.getValue();
 			if (!tblArray[i++].rewindRow()) {
-				return; // No data on one of the selected tables.
+				return null; // No data on one of the selected tables.
 			}
 		}
+		return tblArray;
+	}
+
+	private DataRow buildExecutionRow () throws ParserException, DataError {
+
+		DataRow row = new DataRow();
+		for (Entry<String, DataTable> tbl : tables.entrySet()) {
+			tbl.getValue().fetchRow(tbl.getKey(), row);
+		}
 		
-		for (;;) {
-			// Build a row
-			DataRow row = new DataRow();
-			for (Entry<String, DataTable> tbl : tables.entrySet()) {
-				tbl.getValue().fetchRow(tbl.getKey(), row);
-			}
-			
+		if (whereClause != null) {
 			whereClause.invoke(row);
-			if (whereClause.isTrue()) {
-				if (distinct) {
-					// TODO Check that this row doesn't already exists.
-				}
+			if (!whereClause.isTrue()) {
+				return null;
+			}
+		}
+		if (distinct) {
+			// TODO Check that this row doesn't already exists.
+		}
+		return row;
+	}
+	
+
+	private DataRow findRow () throws ParserException, DataError {
+
+		DataTable table = tables.entrySet().iterator().next().getValue();
+		DataRow row = table.getRow();
+		
+		if (whereClause != null) {
+			whereClause.invoke(row);
+			if (!whereClause.isTrue()) {
+				return null;
+			}
+		}
+		if (distinct) {
+			// TODO Check that this row doesn't already exists.
+		}
+		return row;
+	}
+	
+	private boolean nextRow(DataTable[] tblArray) {
+
+		int i=0;
+		while (!tblArray[i].nextRow()) {
+			tblArray[i].rewindRow();
+			if (++i >= tblArray.length) {
+				return false; // We read all rows combinations
+			}
+		}
+		return true;
+	}
+	
+	private void executeSelect() throws DataError, ParserException {
+		
+		DataTable[] tblArray = initExecution ();
+		if (tblArray == null) {
+			return;
+		}
+		for (;;) {
+			DataRow row = buildExecutionRow ();
+			if (row != null) {
 				results.pushRow(row);
 			}
 			
-			// Next row
-			i = 0;
-			while (!tblArray[i].nextRow()) {
-				tblArray[i].rewindRow();
-				if (++i >= tblArray.length) {
-					return; // We read all rows combinations
-				}
+			if (!nextRow(tblArray)) {
+				break;
 			}
 		}
 	}
 
-	private void executeInsert() {
-		// TODO Auto-generated method stub
-		
+	private void executeInsert() throws DataError {
+		results = new DataTable("temp").addColumn(new DataColumn("object_created", Primitive.Int));
+		// TODO -- Count the number of new values how !? 
+		DataRow res = new DataRow();
+		res.put("object_created", new DataValue(Primitive.Int, 1));
+		results.pushRow(res);
 	}
 
+	private void executeUpdate() throws DataError, ParserException {
+		results = new DataTable("temp").addColumn(new DataColumn("objects_updated", Primitive.Int));
+		DataTable[] tblArray = initExecution ();
+		if (tblArray == null || tblArray.length > 1) {
+			throw new DataError("An update operation can only be done on a single table.");
+		}
+
+		int count = 0;
+		for (;;) {
+			DataRow row = findRow ();
+			if (row != null) {
+				row.mergeRow(updateRow);
+				++count;
+			}
+			
+			if (!nextRow(tblArray)) {
+				break;
+			}
+		}
+		DataRow res = new DataRow();
+		res.put("objects_updated", new DataValue(Primitive.Int, count));
+		results.pushRow(res);
+	}
 
 	private void readSelectCore() throws ParserException, DataError {
 		// SELECT (DISTINCT | ALL)? column (, column)* 
@@ -178,7 +253,38 @@ public class SQLParser {
 		lexer.unread(token);
 	}
 
-	private DataColumn readColumn() throws ParserException {
+
+	private void readUpdateCore() throws ParserException, DataError {
+		Token token;
+		expect("UPDATE");
+		readTableOrSubquery();
+		expect("SET");
+		updateRow = new DataRow();
+		DataTable table = tables.values().iterator().next();
+		do {
+			token = read();
+			if (!token.isOfType(TokenClass.IDENTIFIER)) {
+				throw new ParserException("Error: expect an identifier instead of " + token.getLiteral() + " at: " + token.getPosition());
+			}
+			DataColumn column =  table.getColumn(token.getLiteral());
+			expect("=="); // We replaced = by ==
+			Resolver expr = readExpr();
+			Operand result = expr.getResult();
+			if (!result.isConst() && result.getType() != Primitive.Undefined) {
+				throw new ParserException("Error: expression of updates operation must be constante.");
+			}
+			updateRow.put(column.getName(), new DataValue(result.getType(), result.getValue()));
+			token = read();
+		} while (token != null && token.isEquals(","));
+		
+		if (token.isEquals("WHERE")) {
+			whereClause = readExpr();
+		} else {
+			lexer.unread(token);
+		}
+	}
+
+	private DataColumn readColumn() throws ParserException, DataError {
 		Resolver expr = readExpr();
 		String name = expr.getResult().getName();
 		Token token = read();
@@ -257,7 +363,7 @@ public class SQLParser {
 		return row;
 	}
 
-	private Resolver readExpr() throws ParserException {
+	private Resolver readExpr() throws ParserException, DataError {
 		int parenthesis = 0;
 		Resolver res = new Resolver();
 		Token token;
@@ -265,12 +371,9 @@ public class SQLParser {
 			token = read();
 			if (token == null) {
 				break;
-			} else if (token.isOfType(TokenClass.IDENTIFIER)) {
+			} 
+			if (token.isOfType(TokenClass.IDENTIFIER)) {
 				res.push(token, new Operand(token, token.getLiteral()));
-			} else if (token.isOfType(TokenClass.STRING)) {
-				String value = token.getLiteral();
-				value = value.substring(1, value.length() - 1);
-				res.push(token, new Operand(token, Primitive.String, value));
 			} else if (token.isOfType(TokenClass.OPERATOR)) {
 				if (token.isEquals("(")) {
 					parenthesis++;
@@ -282,6 +385,20 @@ public class SQLParser {
 					res.closeParenthese(token);
 				} else {
 					res.push(token, Operator.find(token.getLiteral()));
+				}
+			} else if (token.isOfType(TokenClass.STRING)) {
+				String value = token.getLiteral();
+				value = value.substring(1, value.length() - 1);
+				res.push(token, new Operand(token, Primitive.String, value));
+			} else if (token.isOfType(TokenClass.DECIMAL)) {
+				res.push(token, new Operand(token, Primitive.Int, Integer.valueOf(token.getLiteral())));
+			} else if (token.isOfType(TokenClass.NUMBER)) {
+				res.push(token, new Operand(token, Primitive.Double, Double.valueOf(token.getLiteral())));
+			} else if (token.isOfType(TokenClass.KEYWORD1)) {
+				if (token.isEquals("NULLSTRING")) {
+					res.push(token, new Operand(token, Primitive.String, null));
+				} else {
+					break;
 				}
 			} else {
 				break;
@@ -300,8 +417,22 @@ public class SQLParser {
 		} else if (token.isOfType(TokenClass.KEYWORD1)) {
 			token.setLitteral(token.getLiteral().toUpperCase());
 		} else if (token.isOfType(TokenClass.OPERATOR)) {
+			token.setLitteral(token.getLiteral().toUpperCase());
 			if (token.getLiteral().equals("=")) {
 				token.setLitteral("==");
+			} else if (token.getLiteral().equals("AND")) {
+				token.setLitteral("&&");
+			} else if (token.getLiteral().equals("OR")) {
+				token.setLitteral("||");
+			} else if (token.getLiteral().equals("IS")) {
+				Token token2 = lexer.read();
+				token2.setLitteral(token2.getLiteral().toUpperCase());
+				if (token2.isEquals("NOT")) {
+					token.setLitteral("!=");
+				} else {
+					lexer.unread(token2);
+					token.setLitteral("==");
+				}
 			}
 		}
 		return token;
@@ -310,7 +441,7 @@ public class SQLParser {
 	private void expect(String expected) throws ParserException {
 		Token token = read();
 		if (!token.isEquals(expected)) {
-			String msg = "Expecting " + expected + " unstead of " + token.getLiteral() + ".";
+			String msg = "Expecting '" + expected + "' unstead of '" + token.getLiteral() + "' at: " + token.getPosition() + ".";
 			throw new ParserException(msg);
 		}
 	}

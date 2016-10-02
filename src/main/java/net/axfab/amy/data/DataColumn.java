@@ -24,22 +24,16 @@ public class DataColumn {
 	private String name;
 	private Primitive type;
 	private int length;
-	private boolean repeating;
 	private Resolver method;
 
-	public DataColumn(String name, Primitive type, int length, boolean repeating) {
+	public DataColumn(String name, Primitive type, int length) {
 		this.name = name;
 		this.type = type;
 		this.length = length;
-		this.repeating = repeating;
-	}
-
-	public DataColumn(String name, Primitive type, int length) {
-		this(name, type, length, false);
 	}
 
 	public DataColumn(String name, Primitive type) {
-		this(name, type, 0, false);
+		this(name, type, 0);
 	}
 
 	public DataColumn(Resolver expr, String alias) {
@@ -49,7 +43,7 @@ public class DataColumn {
 	}
 
 	public DataColumn copy() {
-		return new DataColumn(name, type, length, repeating);
+		return new DataColumn(name, type, length);
 	}
 
 	public String getName() {

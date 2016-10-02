@@ -37,6 +37,13 @@ public class SQLTester extends TestCase {
 		res = db.execute("INSERT INTO myTable(user, comment) VALUES('Fabien', 'Still me.')");
 		res.dump();
 		res = db.execute("SELECT comment FROM myTable WHERE user = 'Me'");
+		res.dump();
+		res = db.execute("UPDATE myTable SET comment='Second time awesome...' WHERE length(user) < 5");
+		res.dump();
+		res = db.execute("SELECT user, comment FROM myTable WHERE user = 'Me' AND comment is not nullstring");
 		res.dump();	
+		
+		// boolean next = res.rewindRow();
+		// next = res.nextRow();
 	}
 }

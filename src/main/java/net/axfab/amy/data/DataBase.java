@@ -55,6 +55,7 @@ public class DataBase {
 		} catch (Exception ex) {
 			System.err.println(ex.getClass().getSimpleName() + ": " + ex.getMessage());
 			ex.printStackTrace();
+			return null;
 		}
 		return parser.getResults();
 	}

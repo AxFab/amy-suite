@@ -18,12 +18,12 @@ package net.axfab.amy.lexer;
 
 public class Delimiter {
 
-	private String label;
+	private TokenClass label;
 	private String prefix;
 	private String suffix;
 	private String escape;
 	
-	public Delimiter(String label, String prefix, String suffix, String escape) {
+	public Delimiter(TokenClass label, String prefix, String suffix, String escape) {
 		this.label = label;
 		this.prefix = prefix;
 		this.suffix = suffix;
@@ -31,7 +31,7 @@ public class Delimiter {
 	}
 	
 	public TokenClass getLabel() {
-		return TokenClass.valueOf(label);
+		return label;
 	}
 	
 	public String getPrefix() {
